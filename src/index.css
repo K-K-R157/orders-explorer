@@ -1,0 +1,17 @@
+@import 'tailwindcss';
+
+/* Dense base for an all-day internal tool on 13" laptops.
+   13px is set on body (not html) so Tailwind's rem-based sizes keep their normal scale. */
+@layer base {
+  body {
+    font-size: 13px;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    @apply bg-white text-slate-900;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+}
