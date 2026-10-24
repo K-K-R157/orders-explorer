@@ -1,32 +1,29 @@
-import { useEffect, useState } from 'react';
-import { loadOrders } from './data/loadOrders';
-import type { NormalizeResult } from './data/normalize';
-
-type LoadState =
-  | { kind: 'loading' }
-  | { kind: 'error'; message: string }
-  | { kind: 'ready'; data: NormalizeResult };
+import { useOrders } from './data/useOrders';
+import { DataGrid } from './grid/DataGrid';
+import { formatCount } from './lib/format';
 
 function App() {
-  const [state, setState] = useState<LoadState>({ kind: 'loading' });
+  const state = useOrders();
 
-  useEffect(() => {
-    loadOrders()
-      .then((data) => setState({ kind: 'ready', data }))
-      .catch((err: unknown) =>
-        setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) }),
-      );
-  }, []);
-
-  if (state.kind === 'loading') return <p>Loading orders…</p>;
-  if (state.kind === 'error') return <p role="alert">Could not load orders: {state.message}</p>;
-
-  const { orders, skipped, duplicatesRemoved } = state.data;
   return (
-    <p>
-      Loaded {orders.length.toLocaleString('en-IN')} orders ({duplicatesRemoved} duplicates
-      removed, {skipped} skipped)
-    </p>
+    <div className="flex h-full flex-col">
+      <header className="flex h-10 shrink-0 items-center gap-4 border-b border-slate-300 px-3">
+        <h1 className="text-sm font-semibold">Orders Explorer</h1>
+        {state.kind === 'ready' && (
+          <span className="text-slate-500 tabular-nums">
+            {formatCount(state.data.orders.length)} orders
+          </span>
+        )}
+      </header>
+
+      {state.kind === 'loading' && <p className="px-3 py-6 text-slate-500">Loading orders…</p>}
+      {state.kind === 'error' && (
+        <p className="px-3 py-6 text-red-700" role="alert">
+          Could not load orders: {state.message}
+        </p>
+      )}
+      {state.kind === 'ready' && <DataGrid rows={state.data.orders} />}
+    </div>
   );
 }
 
