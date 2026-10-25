@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { DetailsPanel } from './components/DetailsPanel';
 import type { Order } from './data/types';
 import { useOrders } from './data/useOrders';
-import { DataGrid } from './grid/DataGrid';
+import { DataGrid, type DataGridHandle } from './grid/DataGrid';
 import { EMPTY_SELECTION, type Selection } from './grid/selection';
 import { sortOrders, type SortState } from './grid/sort';
 import { formatCount } from './lib/format';
@@ -14,10 +15,21 @@ function App() {
   // Order ID is pinned by default so each row stays identifiable while scrolling sideways.
   const [pinned, setPinned] = useState<keyof Order | null>('id');
   const [selected, setSelected] = useState<Selection>(EMPTY_SELECTION);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const gridRef = useRef<DataGridHandle>(null);
 
   const orders = state.kind === 'ready' ? state.data.orders : NO_ORDERS;
   // Only re-sorts when the data or the sort actually changes, not on every render.
   const sortedRows = useMemo(() => sortOrders(orders, sort), [orders, sort]);
+  const ordersById = useMemo(() => new Map(orders.map((o) => [o.id, o])), [orders]);
+  const detailsOrder = detailsId ? ordersById.get(detailsId) : undefined;
+
+  const openDetails = useCallback((order: Order) => setDetailsId(order.id), []);
+  // Return focus to the grid so keyboard users keep their place.
+  const closeDetails = useCallback(() => {
+    setDetailsId(null);
+    gridRef.current?.focus();
+  }, []);
 
   return (
     <div className="flex h-full flex-col">
@@ -47,15 +59,22 @@ function App() {
         </p>
       )}
       {state.kind === 'ready' && (
-        <DataGrid
-          rows={sortedRows}
-          sort={sort}
-          onSortChange={setSort}
-          pinned={pinned}
-          onPinnedChange={setPinned}
-          selected={selected}
-          onSelectedChange={setSelected}
-        />
+        <main className="flex min-h-0 flex-1">
+          <DataGrid
+            ref={gridRef}
+            rows={sortedRows}
+            sort={sort}
+            onSortChange={setSort}
+            pinned={pinned}
+            onPinnedChange={setPinned}
+            selected={selected}
+            onSelectedChange={setSelected}
+            detailsOpen={detailsOrder !== undefined}
+            onOpenDetails={openDetails}
+            onCloseDetails={closeDetails}
+          />
+          {detailsOrder && <DetailsPanel order={detailsOrder} onClose={closeDetails} />}
+        </main>
       )}
     </div>
   );
