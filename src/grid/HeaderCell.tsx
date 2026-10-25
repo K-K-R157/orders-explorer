@@ -4,8 +4,8 @@ import type { SortDir } from './sort';
 
 const ARIA_SORT = { asc: 'ascending', desc: 'descending' } as const;
 
-// Shadow on the right edge shows the pinned column floats above the others.
-export const PINNED_CELL = 'sticky left-0 z-10 shadow-[2px_0_4px_-2px_rgb(0_0_0/0.2)]';
+// Sticks just right of the checkbox column (w-8 = 32px). The shadow shows it floats above the others.
+export const PINNED_CELL = 'sticky left-8 z-10 shadow-[2px_0_4px_-2px_rgb(0_0_0/0.2)]';
 
 type HeaderCellProps = {
   column: Column;
