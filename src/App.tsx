@@ -10,6 +10,8 @@ const NO_ORDERS: readonly Order[] = [];
 function App() {
   const state = useOrders();
   const [sort, setSort] = useState<SortState>(null);
+  // Order ID is pinned by default so each row stays identifiable while scrolling sideways.
+  const [pinned, setPinned] = useState<keyof Order | null>('id');
 
   const orders = state.kind === 'ready' ? state.data.orders : NO_ORDERS;
   // Only re-sorts when the data or the sort actually changes, not on every render.
@@ -31,7 +33,13 @@ function App() {
         </p>
       )}
       {state.kind === 'ready' && (
-        <DataGrid rows={sortedRows} sort={sort} onSortChange={setSort} />
+        <DataGrid
+          rows={sortedRows}
+          sort={sort}
+          onSortChange={setSort}
+          pinned={pinned}
+          onPinnedChange={setPinned}
+        />
       )}
     </div>
   );

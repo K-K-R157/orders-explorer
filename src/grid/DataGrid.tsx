@@ -1,10 +1,17 @@
-import { memo, useRef, type CSSProperties } from 'react';
+import { memo, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { Order, Status } from '../data/types';
 import { COLUMNS, type Column } from './columns';
+import { HeaderCell, PINNED_CELL } from './HeaderCell';
 import { nextSort, type SortState } from './sort';
 import { useVirtualRows } from './useVirtualRows';
 
 const ROW_HEIGHT = 28;
+const MIN_COLUMN_WIDTH = 50;
+
+type ColumnKey = keyof Order;
+type Widths = Record<ColumnKey, number>;
+
+const DEFAULT_WIDTHS = Object.fromEntries(COLUMNS.map((c) => [c.key, c.width])) as Widths;
 
 // Shared cell look: single line, cut long text with "…".
 const CELL = 'truncate border-r border-slate-200 px-2';
@@ -23,28 +30,41 @@ const STATUS_DOT: Record<Status, string> = {
   cancelled: 'bg-red-600',
 };
 
-const ARIA_SORT = { asc: 'ascending', desc: 'descending' } as const;
-
 type DataGridProps = {
   rows: readonly Order[];
   sort: SortState;
   onSortChange: (sort: SortState) => void;
+  pinned: ColumnKey | null;
+  onPinnedChange: (pinned: ColumnKey | null) => void;
 };
 
-export function DataGrid({ rows, sort, onSortChange }: DataGridProps) {
+export function DataGrid({ rows, sort, onSortChange, pinned, onPinnedChange }: DataGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { start, end, totalHeight } = useVirtualRows(scrollRef, rows.length, ROW_HEIGHT);
+  const [widths, setWidths] = useState<Widths>(DEFAULT_WIDTHS);
 
-  // Column widths live in CSS variables shared by header and rows,
-  // so they always line up (and resizing later only touches one place).
+  // The pinned column is moved to the front, then made sticky on the left.
+  // Kept stable with useMemo so resizing doesn't force every row to re-render.
+  const columns = useMemo(() => {
+    const pinnedColumn = COLUMNS.find((c) => c.key === pinned);
+    return pinnedColumn ? [pinnedColumn, ...COLUMNS.filter((c) => c !== pinnedColumn)] : COLUMNS;
+  }, [pinned]);
+
+  const setWidth = (key: ColumnKey, width: number) =>
+    setWidths((prev) => ({ ...prev, [key]: Math.max(MIN_COLUMN_WIDTH, Math.round(width)) }));
+
+  // Column widths live in CSS variables shared by header and rows, so they always
+  // line up. Resizing only changes these variables; row contents stay untouched.
   const gridStyle = {
-    '--grid-template': COLUMNS.map((c) => `${c.width}px`).join(' '),
-    '--grid-width': `${COLUMNS.reduce((sum, c) => sum + c.width, 0)}px`,
+    '--grid-template': columns.map((c) => `${widths[c.key]}px`).join(' '),
+    '--grid-width': `${columns.reduce((sum, c) => sum + widths[c.key], 0)}px`,
   } as CSSProperties;
 
   const visibleRows = [];
   for (let i = start; i < end; i++) {
-    visibleRows.push(<GridRow key={rows[i].id} order={rows[i]} index={i} />);
+    visibleRows.push(
+      <GridRow key={rows[i].id} order={rows[i]} index={i} columns={columns} pinned={pinned} />,
+    );
   }
 
   return (
@@ -56,39 +76,26 @@ export function DataGrid({ rows, sort, onSortChange }: DataGridProps) {
       style={gridStyle}
       role="grid"
       aria-rowcount={rows.length + 1}
-      aria-colcount={COLUMNS.length}
+      aria-colcount={columns.length}
     >
       <div
         className="sticky top-0 z-20 grid h-[30px] w-(--grid-width) grid-cols-(--grid-template) border-b border-slate-300 bg-slate-50 leading-[30px] font-semibold text-slate-600"
         role="row"
         aria-rowindex={1}
       >
-        {COLUMNS.map((col) => {
-          const dir = sort?.key === col.key ? sort.dir : null;
-          return (
-            <div
-              key={col.key}
-              role="columnheader"
-              aria-sort={dir ? ARIA_SORT[dir] : 'none'}
-              className="border-r border-slate-200"
-            >
-              {/* A real button, so sorting also works from the keyboard. */}
-              <button
-                type="button"
-                onClick={() => onSortChange(nextSort(sort, col.key))}
-                title={`Sort by ${col.label}`}
-                className={`flex h-full w-full cursor-pointer items-center gap-1 px-2 font-semibold hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-600 ${
-                  col.align === 'right' ? 'flex-row-reverse' : ''
-                } ${dir ? 'text-slate-900' : ''}`}
-              >
-                <span className="truncate">{col.label}</span>
-                <span className="w-2.5 shrink-0 text-[10px] text-blue-600" aria-hidden="true">
-                  {dir === 'asc' ? '▲' : dir === 'desc' ? '▼' : ''}
-                </span>
-              </button>
-            </div>
-          );
-        })}
+        {columns.map((col) => (
+          <HeaderCell
+            key={col.key}
+            column={col}
+            width={widths[col.key]}
+            sortDir={sort?.key === col.key ? sort.dir : null}
+            pinned={pinned === col.key}
+            onSort={() => onSortChange(nextSort(sort, col.key))}
+            onTogglePin={() => onPinnedChange(pinned === col.key ? null : col.key)}
+            onResize={(w) => setWidth(col.key, w)}
+            onResetWidth={() => setWidth(col.key, DEFAULT_WIDTHS[col.key])}
+          />
+        ))}
       </div>
       <div className="relative w-(--grid-width)" style={{ height: totalHeight }}>
         {visibleRows}
@@ -100,26 +107,29 @@ export function DataGrid({ rows, sort, onSortChange }: DataGridProps) {
 type GridRowProps = {
   order: Order;
   index: number;
+  columns: Column[];
+  pinned: ColumnKey | null;
 };
 
-// memo: while scrolling, rows that stay on screen are not re-rendered.
-const GridRow = memo(function GridRow({ order, index }: GridRowProps) {
+// memo: while scrolling or resizing, rows whose props didn't change are not re-rendered.
+const GridRow = memo(function GridRow({ order, index, columns, pinned }: GridRowProps) {
   return (
     <div
       role="row"
       aria-rowindex={index + 2}
+      // Row colours are opaque so the sticky pinned cell (bg-inherit) hides what scrolls under it.
       className={`absolute top-0 left-0 grid h-7 w-(--grid-width) grid-cols-(--grid-template) border-b border-slate-100 leading-6.75 hover:bg-blue-50 ${
-        index % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'
+        index % 2 === 1 ? 'bg-slate-50' : 'bg-white'
       }`}
       style={{ transform: `translateY(${index * ROW_HEIGHT}px)` }}
     >
-      {COLUMNS.map((col) => {
+      {columns.map((col) => {
         const value = col.format(order);
         return (
           <div
             key={col.key}
             role="gridcell"
-            className={`${CELL} ${ALIGN[col.align]}`}
+            className={`${CELL} ${ALIGN[col.align]} ${pinned === col.key ? `${PINNED_CELL} bg-inherit` : ''}`}
             // Full value on hover for truncated text. React renders it as plain text, never HTML.
             title={col.type === 'text' ? value : undefined}
           >
