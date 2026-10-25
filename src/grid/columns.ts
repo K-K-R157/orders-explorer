@@ -23,9 +23,9 @@ export const COLUMNS: Column[] = [
   { key: 'createdAt', label: 'Created (UTC)', type: 'date', width: 130, align: 'left', format: (o) => formatDate(o.createdAt) },
   { key: 'updatedAt', label: 'Updated (UTC)', type: 'date', width: 130, align: 'left', format: (o) => formatDate(o.updatedAt) },
   { key: 'region', label: 'Region', type: 'enum', width: 95, align: 'left', format: text('region') },
-  { key: 'channel', label: 'Channel', type: 'enum', width: 75, align: 'left', format: text('channel') },
-  { key: 'priority', label: 'Priority', type: 'enum', width: 70, align: 'left', format: (o) => formatPriority(o.priority) },
+  { key: 'channel', label: 'Channel', type: 'enum', width: 85, align: 'left', format: text('channel') },
+  { key: 'priority', label: 'Priority', type: 'enum', width: 80, align: 'left', format: (o) => formatPriority(o.priority) },
   { key: 'paymentMethod', label: 'Payment', type: 'enum', width: 95, align: 'left', format: text('paymentMethod') },
-  { key: 'itemCount', label: 'Items', type: 'number', width: 60, align: 'right', format: (o) => String(o.itemCount) },
+  { key: 'itemCount', label: 'Items', type: 'number', width: 70, align: 'right', format: (o) => String(o.itemCount) },
   { key: 'notes', label: 'Notes', type: 'text', width: 260, align: 'left', format: text('notes') },
 ];

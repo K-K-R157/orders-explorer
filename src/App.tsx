@@ -1,18 +1,26 @@
+import { useMemo, useState } from 'react';
+import type { Order } from './data/types';
 import { useOrders } from './data/useOrders';
 import { DataGrid } from './grid/DataGrid';
+import { sortOrders, type SortState } from './grid/sort';
 import { formatCount } from './lib/format';
+
+const NO_ORDERS: readonly Order[] = [];
 
 function App() {
   const state = useOrders();
+  const [sort, setSort] = useState<SortState>(null);
+
+  const orders = state.kind === 'ready' ? state.data.orders : NO_ORDERS;
+  // Only re-sorts when the data or the sort actually changes, not on every render.
+  const sortedRows = useMemo(() => sortOrders(orders, sort), [orders, sort]);
 
   return (
     <div className="flex h-full flex-col">
       <header className="flex h-10 shrink-0 items-center gap-4 border-b border-slate-300 px-3">
         <h1 className="text-sm font-semibold">Orders Explorer</h1>
         {state.kind === 'ready' && (
-          <span className="text-slate-500 tabular-nums">
-            {formatCount(state.data.orders.length)} orders
-          </span>
+          <span className="text-slate-500 tabular-nums">{formatCount(orders.length)} orders</span>
         )}
       </header>
 
@@ -22,7 +30,9 @@ function App() {
           Could not load orders: {state.message}
         </p>
       )}
-      {state.kind === 'ready' && <DataGrid rows={state.data.orders} />}
+      {state.kind === 'ready' && (
+        <DataGrid rows={sortedRows} sort={sort} onSortChange={setSort} />
+      )}
     </div>
   );
 }

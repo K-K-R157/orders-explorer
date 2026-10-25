@@ -1,6 +1,7 @@
 import { memo, useRef, type CSSProperties } from 'react';
 import type { Order, Status } from '../data/types';
 import { COLUMNS, type Column } from './columns';
+import { nextSort, type SortState } from './sort';
 import { useVirtualRows } from './useVirtualRows';
 
 const ROW_HEIGHT = 28;
@@ -22,11 +23,15 @@ const STATUS_DOT: Record<Status, string> = {
   cancelled: 'bg-red-600',
 };
 
+const ARIA_SORT = { asc: 'ascending', desc: 'descending' } as const;
+
 type DataGridProps = {
-  rows: Order[];
+  rows: readonly Order[];
+  sort: SortState;
+  onSortChange: (sort: SortState) => void;
 };
 
-export function DataGrid({ rows }: DataGridProps) {
+export function DataGrid({ rows, sort, onSortChange }: DataGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { start, end, totalHeight } = useVirtualRows(scrollRef, rows.length, ROW_HEIGHT);
 
@@ -58,11 +63,32 @@ export function DataGrid({ rows }: DataGridProps) {
         role="row"
         aria-rowindex={1}
       >
-        {COLUMNS.map((col) => (
-          <div key={col.key} role="columnheader" className={`${CELL} ${ALIGN[col.align]}`}>
-            {col.label}
-          </div>
-        ))}
+        {COLUMNS.map((col) => {
+          const dir = sort?.key === col.key ? sort.dir : null;
+          return (
+            <div
+              key={col.key}
+              role="columnheader"
+              aria-sort={dir ? ARIA_SORT[dir] : 'none'}
+              className="border-r border-slate-200"
+            >
+              {/* A real button, so sorting also works from the keyboard. */}
+              <button
+                type="button"
+                onClick={() => onSortChange(nextSort(sort, col.key))}
+                title={`Sort by ${col.label}`}
+                className={`flex h-full w-full cursor-pointer items-center gap-1 px-2 font-semibold hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-600 ${
+                  col.align === 'right' ? 'flex-row-reverse' : ''
+                } ${dir ? 'text-slate-900' : ''}`}
+              >
+                <span className="truncate">{col.label}</span>
+                <span className="w-2.5 shrink-0 text-[10px] text-blue-600" aria-hidden="true">
+                  {dir === 'asc' ? '▲' : dir === 'desc' ? '▼' : ''}
+                </span>
+              </button>
+            </div>
+          );
+        })}
       </div>
       <div className="relative w-(--grid-width)" style={{ height: totalHeight }}>
         {visibleRows}
@@ -82,7 +108,7 @@ const GridRow = memo(function GridRow({ order, index }: GridRowProps) {
     <div
       role="row"
       aria-rowindex={index + 2}
-      className={`absolute top-0 left-0 grid h-[28px] w-(--grid-width) grid-cols-(--grid-template) border-b border-slate-100 leading-[27px] hover:bg-blue-50 ${
+      className={`absolute top-0 left-0 grid h-7 w-(--grid-width) grid-cols-(--grid-template) border-b border-slate-100 leading-6.75 hover:bg-blue-50 ${
         index % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'
       }`}
       style={{ transform: `translateY(${index * ROW_HEIGHT}px)` }}
@@ -99,7 +125,7 @@ const GridRow = memo(function GridRow({ order, index }: GridRowProps) {
           >
             {col.key === 'status' && (
               <span
-                className={`mr-1.5 inline-block size-[7px] rounded-full align-[1px] ${STATUS_DOT[order.status]}`}
+                className={`mr-1.5 inline-block size-1.75 rounded-full align-[1px] ${STATUS_DOT[order.status]}`}
                 aria-hidden="true"
               />
             )}
