@@ -16,7 +16,10 @@ export function parseNumber(text: string): number | null {
 // "YYYY-MM-DD" from <input type="date"> → start of that day in UTC (dates are shown in UTC).
 export function parseDay(text: string): number | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
-  return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+  if (!m) return null;
+  const ms = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  // Reject impossible dates like 2024-13-45 instead of letting them roll over.
+  return new Date(ms).toISOString().startsWith(text) ? ms : null;
 }
 
 // Turns one condition into a fast predicate. Values are parsed once here, not per row.
